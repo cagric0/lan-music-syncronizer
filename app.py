@@ -14,8 +14,10 @@ class TkinterApp(tk.Tk):
         icon = tk.PhotoImage(file='res/logo.png')
         self.iconphoto(False, icon)
 
-        global username
+        global username, rooms, rooms_var
         username = tk.StringVar()
+        rooms = [f"Room {i}" for i in range(1, 21)]
+        rooms_var = tk.StringVar(value=rooms)
 
         container = tk.Frame(self)
         container.pack(side="top", fill="both", expand=True)
@@ -76,15 +78,60 @@ class Page1(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
         self.configure(bg=COLORS[3])
-        global username
-        label = tk.Label(self, text='welcome ', font=SMALLFONT, bg=COLORS[3], fg='white')
-        label.grid(row=0, column=3, padx=0, pady=10)
-        label = tk.Label(self, textvariable=username, font=SMALLFONT, bg=COLORS[3], fg='white')
-        label.grid(row=0, column=4, padx=0, pady=10)
+        self.listbox = None
+        self.get_welcome_frame()
+        self.get_listbox_frame()
+        self.get_buttons(controller)
 
-        button1 = tk.Button(self, text="Log Out",
-                            command=lambda: controller.show_frame(StartPage))
-        button1.grid(row=1, column=1, padx=10, pady=10)
+    def join_selected_room(self):
+        val = self.listbox.curselection()
+        if not val:
+            return
+        val = val[0]
+        print(rooms[val])
+
+    def refresh_rooms(self):
+        # todo implement
+        global rooms, rooms_var
+        rooms = rooms # get from network
+        rooms_var
+        pass
+
+
+    def get_buttons(self, controller):
+        buttons_frame = tk.Frame(self)
+        buttons_frame.configure(bg=COLORS[3])
+        buttons = [tk.Button(buttons_frame, text="Join Room", command=self.join_selected_room),
+                   tk.Button(buttons_frame, text="Refresh", command=self.refresh_rooms),
+                   tk.Button(buttons_frame, text="Log Out", command=lambda: controller.show_frame(StartPage)),
+                   tk.Button(buttons_frame, text="Log Out", command=lambda: controller.show_frame(StartPage))]
+        for i, button in enumerate(buttons):
+            button.grid(row=0, column=i, padx=20, pady=5)
+        buttons_frame.pack()
+
+    def get_listbox_frame(self):
+        lbl = tk.Label(self, text="Available Rooms", font=SMALLFONT, bg=COLORS[3], fg='white')
+        lbl.pack(padx=5, pady=5)
+        listbox_frame = tk.Frame(self)
+        listbox_frame.configure(bg=COLORS[3])
+        global rooms_var, rooms
+        self.listbox = tk.Listbox(listbox_frame, width=100, height=10, selectbackground=COLORS[1],
+                                  selectforeground='black', activestyle="none", listvariable=rooms_var)
+        self.listbox.pack(side=tk.LEFT)
+        scrollbar = tk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.listbox.yview)
+        listbox_frame.pack()
+
+    def get_welcome_frame(self):
+        welcome_frame = tk.Frame(self)
+        global username
+        label1 = tk.Label(welcome_frame, text='Welcome', font=SMALLFONT, bg=COLORS[3], fg='white')
+        label1.grid(row=0, column=0)
+        label2 = tk.Label(welcome_frame, textvariable=username, font=SMALLFONT, bg=COLORS[3], fg='white')
+        label2.grid(row=0, column=1)
+        welcome_frame.pack(pady=(10, 0))
 
 
 class Page2(tk.Frame):

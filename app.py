@@ -62,15 +62,6 @@ def get_ip():
         s.close()
 
 
-def showActiveRooms():
-    if (len(ip_room_dict) == 0):
-        print("There is no active room")
-    else:
-        print("Active Rooms:")
-        for key, value in ip_room_dict.items():
-            print(value)
-
-
 # UDP Functions
 def thread_broadcast(message):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -118,7 +109,6 @@ def createUDPMessage(message_type):
 
 # TCP Functions
 def thread_unicast(IP, message):
-    print(message)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
@@ -421,7 +411,7 @@ def send_song_file(IP, filename):
 # Receive File Function
 
 def receive_song_file():
-    
+
     while True:
         file_path = MUSIC_LIBRARY_PATH + current_song["name"]
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

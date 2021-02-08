@@ -73,9 +73,10 @@ def thread_broadcast(message):
 
 
 def sendUDP(udpMessage):
-    #for i in range(3):
-    dis = threading.Thread(target=thread_broadcast, args=(udpMessage,))
-    dis.start()
+
+    for i in range(1):
+        dis = threading.Thread(target=thread_broadcast, args=(udpMessage,))
+        dis.start()
 
 
 def createUDPMessage(message_type):
@@ -122,6 +123,7 @@ def thread_unicast(IP, message):
     #except:
         #print(str(IP) + " is unexpectedly offline.")
         # ip_name_dict.pop(IP, None)
+
 
 
 def createTCPMessage(message_type):
@@ -259,6 +261,7 @@ def handle_enter_room(received_packet):
             print('cre', created_room_ip)
             if created_room_ip.strip():
                 # sends song info to user that enter the room
+                time.sleep(1)
                 respond_message = createTCPMessage(messageType["song_file_info"])
                 sendTCP(new_user_ip, respond_message)
 

@@ -233,6 +233,8 @@ def handle_exit_room_host(received_packet):
         ## o odadaki tüm kullanıcılar ana menüye yönlendirilir
         global page2_global, page2_global_controller
         # TODO test
+        update_room_ui()
+        update_userlist_ui()
         page2_global.slider.config(value=0)
         pygame.mixer.music.stop()
         page2_global_controller.show_frame(Page1)
@@ -493,14 +495,15 @@ def sendTCP_users_in_room(message_type):
         sendTCP(ip, respond_message)
 
 def update_room_ui():
-    global ip_room_dict, rooms_var, rooms
-    rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items()]
+    global ip_room_dict, rooms_var, rooms, IPAddr
+    rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items() if k != IPAddr]
+
     room_names = [r[1]+" hosted by "+r[2] for r in rooms]
     rooms_var.set(room_names)
 
 def update_userlist_ui():
-    global ip_name_dict_in_room, users_in_room, users_in_room_var
-    users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items()]
+    global ip_name_dict_in_room, users_in_room, users_in_room_var, IPAddr
+    users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items() if k != IPAddr]
     users_in_room_names = [u[1] for u in users_in_room]
     users_in_room_var.set(users_in_room_names)
 
@@ -517,7 +520,7 @@ class TkinterApp(tk.Tk):
 
         global username, ip_room_dict, rooms, rooms_var, current_room, current_room_var
         username = tk.StringVar()
-        rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items()]
+        rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items() if k != IPAddr]
         room_names = [r[1]+" hosted by "+r[2] for r in rooms]
         rooms_var = tk.StringVar(value=room_names)
         current_room = None
@@ -525,7 +528,7 @@ class TkinterApp(tk.Tk):
 
         global ip_name_dict_in_room, users_in_room, users_in_room_var
 
-        users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items()]
+        users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items() if k != IPAddr]
         users_in_room_names = [u[1] for u in users_in_room]
         users_in_room_var = tk.StringVar(value=users_in_room_names)
 

@@ -3,6 +3,7 @@ import json
 import threading
 import select
 import os
+import time
 import tkinter as tk
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
@@ -245,8 +246,8 @@ def handle_enter_room(received_packet):
     if selected_room_ip.strip():
         if selected_room_ip == room_ip:
             print(ip_name_dict_in_room)
-            if new_user_ip in ip_name_dict_in_room and ip_name_dict_in_room[new_user_ip] == new_user_name:
-                return
+            # if new_user_ip in ip_name_dict_in_room and ip_name_dict_in_room[new_user_ip] == new_user_name:
+            #     return
             ip_name_dict_in_room[new_user_ip] = new_user_name
             update_userlist_ui()
             respond_message = createTCPMessage(messageType["respond_entering_room"])
@@ -407,6 +408,7 @@ def send_song_file(IP, filename):
     # close the socket
     s.close()
     # TO DO
+    time.sleep(1)
     respond_message = createTCPMessage(messageType["song_file_info"])
     sendTCP(IP, respond_message)
 

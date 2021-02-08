@@ -202,8 +202,6 @@ def handle_UDP_incoming(received_packet):
         handle_exit_room_host(received_packet)
     elif received_packet_type == messageType["enter_room"]:
         handle_enter_room(received_packet)
-    elif received_packet_type == messageType["exit_room"]:
-        handle_exit_room(received_packet)
     else:
         # pass
         print("UDP unknown type received: ", received_packet_type)
@@ -314,6 +312,8 @@ def handle_TCP_incoming(received_packet):
         handle_song_file_info(received_packet)
     elif received_packet_type == messageType["song_file_request"]:
         handle_song_file_request(received_packet)
+    elif received_packet_type == messageType["exit_room"]:
+        handle_exit_room(received_packet)
     else:
         # pass
         print("UDP unknown type received: ", received_packet_type)

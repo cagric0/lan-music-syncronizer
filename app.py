@@ -343,7 +343,7 @@ def handle_respond_entering_room(received_packet):
 
 
 def handle_song_file_info(received_packet):
-    global current_song, page2_global
+    global current_song, page2_global, music_changed
     room_ip = received_packet["ROOM_IP"]
     if not received_packet["SONG_FILE_NAME"].strip():
         current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}
@@ -351,6 +351,9 @@ def handle_song_file_info(received_packet):
         return
     if selected_room_ip == room_ip:
         song_status = received_packet["SONG_STATUS"]
+        if current_song["name"].strip() and current_song["name"] != received_packet["SONG_FILE_NAME"]:
+            print("MUSIC CHANGESSSSSSSSS")
+            music_changed = True
         current_song["name"] = received_packet["SONG_FILE_NAME"]
         current_song["size"] = received_packet["SONG_FILE_SIZE"]
         current_song["time"] = received_packet["SONG_CURRENT_TIME"]
@@ -374,9 +377,9 @@ def handle_song_file_info(received_packet):
                 print("currenTime", current_song["time"])
                 page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.stop()
-                time.sleep(0.02)
                 pygame.mixer.music.load(filepath)
                 pygame.mixer.music.play(0, page2_global.slider.get())
+                print("UPDATE_START")
                 page2_global.update_slider()
                 # play song
         else:
@@ -771,17 +774,18 @@ class Page2(tk.Frame):
             music_changed = False
             return
         if self.slider_hold:
-            self.slider.after(10, self.update_slider)
+            self.slider.after(1000, self.update_slider)
         else:
             if not pygame.mixer.music.get_busy():
                 print("FINISH")
                 return
             pos = self.slider.get()
-            self.slider.config(value=pos + 0.01)
-            global i
-            print(pos) if i % 100 == 0 else None
-            i += 1
-            self.slider.after(10, self.update_slider)
+            self.slider.config(value=pos + 1)
+            print(pos)
+            #global i
+            #print(pos) if i % 100 == 0 else None
+            #i += 1
+            self.slider.after(1000, self.update_slider)
 
     def mute(self):
         if pygame.mixer.music.get_volume():
@@ -800,6 +804,7 @@ class Page2(tk.Frame):
             return
         if current_song["name"] != chosen_song:
             if current_song["name"].strip():
+                print("HALASSSSSSSSSS")
                 music_changed = True
             current_song["name"] = chosen_song
             file_path = MUSIC_LIBRARY_PATH + chosen_song
@@ -838,6 +843,7 @@ class Page2(tk.Frame):
         if not created_room_ip.strip():
             return
         pygame.mixer.music.pause()
+       
         current_song["time"] = self.slider.get()
         current_song["status"] = "paused"
         sendTCP_users_in_room(messageType["song_file_info"])

@@ -45,7 +45,7 @@ ip_room_dict = {}  # ip_room_dict[IP] = [room_name, host_name]
 ip_name_dict_in_room = {}  # ip_name_dict_in_room[IP] = user_name
 
 
-current_song = {"name": "", "size": "", "time": "", "status": ""}  # playing - paused
+current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}  # playing - paused
 
 page2_global = None
 page2_global_controller = None
@@ -143,8 +143,10 @@ def createTCPMessage(message_type):
         message["ROOM_IP"] = created_room_ip
         message["SONG_FILE_NAME"] = current_song["name"]
         message["SONG_FILE_SIZE"] = current_song["size"]
-        message["SONG_CURRENT_TIME"] = current_song["time"]
+        global page2_global
+        message["SONG_CURRENT_TIME"] = page2_global.slider.get()
         message["SONG_STATUS"] = current_song["status"]
+        message["SONG_LENGTH"] = current_song["length"]
     elif message_type == messageType["song_file_request"]:
         message["USER_IP"] = IPAddr
         message["SONG_FILE_NAME"] = current_song["name"]
@@ -225,7 +227,7 @@ def handle_exit_room_host(received_packet):
         ip_name_dict_in_room.clear()
         selected_room_ip = ""
         created_room_ip = ""
-        current_song = {"name": "", "size": "", "time": "", "status": ""}
+        current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}
         ## o odadaki tüm kullanıcılar ana menüye yönlendirilir
         global page2_global, page2_global_controller
         # TODO test
@@ -325,10 +327,10 @@ def handle_respond_entering_room(received_packet):
 
 
 def handle_song_file_info(received_packet):
-    global current_song, page2_global, current_song_length
+    global current_song, page2_global
     room_ip = received_packet["ROOM_IP"]
     if not received_packet["SONG_FILE_NAME"].strip():
-        current_song = {"name": "", "size": "", "time": "", "status": ""}
+        current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}
 
         return
     if selected_room_ip == room_ip:
@@ -337,21 +339,19 @@ def handle_song_file_info(received_packet):
         current_song["size"] = received_packet["SONG_FILE_SIZE"]
         current_song["time"] = received_packet["SONG_CURRENT_TIME"]
         current_song["status"] = received_packet["SONG_STATUS"]
+        current_song['length'] = received_packet['SONG_LENGTH']
         filepath = MUSIC_LIBRARY_PATH + current_song["name"]
         if os.path.exists(filepath):
             if song_status == "stopped":
                 pygame.mixer.music.stop()
-
-                page2_global.slider.config(value='0')
+                page2_global.slider.config(to=current_song['length'], value='0')
                 # stop song
             elif song_status == "paused":
-                page2_global.slider.config(value=current_song['time'])
+                page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.pause()
                 # paused song
             elif song_status == "playing":
-                mut = MP3(filepath)
-                current_song_length = mut.info.length
-                page2_global.slider.config(to=current_song_length, value=current_song['time'])
+                page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.load(filepath)
                 pygame.mixer.music.play(0, page2_global.slider.get())
                 page2_global.update_slider()
@@ -413,17 +413,15 @@ def send_song_file(IP, filename):
 def receive_song_file():
 
     while True:
-        file_path = MUSIC_LIBRARY_PATH + current_song["name"]
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((IPAddr, file_port))
             s.listen()
             conn, addr = s.accept()
             with conn:
-                output = ""
                 file_path = MUSIC_LIBRARY_PATH + current_song["name"]
                 with open(file_path, "wb") as f:
-                    while (True):
+                    while True:
                         data = conn.recv(1024)
                         if not data:
                             break
@@ -775,6 +773,7 @@ class Page2(tk.Frame):
             current_song_name_var.set(chosen_song)
             mut = MP3(file_path)
             current_song_length = mut.info.length
+            current_song["length"] = current_song_length
             sendTCP_users_in_room(messageType["song_file_info"])
             self.slider.config(to=current_song_length, value=0)
             # print(current_song, current_song_length)
@@ -816,12 +815,13 @@ class Page2(tk.Frame):
         if not created_room_ip.strip():
             return
 
-        if self.slider.get() == current_song_length:
-            current_song["status"] = "stopped"
-            current_song["time"] = "0"
-        else:
+        if pygame.mixer.music.get_busy():
             current_song["status"] = "playing"
             current_song["time"] = "0"
+        else:
+            current_song["status"] = "stopped"
+            current_song["time"] = "0"
+
         sendTCP_users_in_room(messageType["song_file_info"])
         pygame.mixer.music.rewind()
         self.slider.config(value=0)
@@ -847,7 +847,7 @@ class Page2(tk.Frame):
 
     def exit(self, controller):
         global current_song, created_room_ip, selected_room_ip, ip_name_dict_in_room
-        current_song = {"name": "", "size": "", "time": "", "status": ""}
+        current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}
         if created_room_ip.strip():
             udp_message = createUDPMessage(messageType["exit_room_host"])
             sendUDP(udp_message)

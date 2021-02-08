@@ -431,6 +431,7 @@ def receive_song_file():
             conn, addr = s.accept()
             with conn:
                 output = ""
+                file_path = MUSIC_LIBRARY_PATH + current_song["name"]
                 with open(file_path, "wb") as f:
                     while (True):
                         data = conn.recv(1024)

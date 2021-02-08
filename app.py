@@ -345,6 +345,7 @@ def handle_song_file_info(received_packet):
         current_song['length'] = received_packet['SONG_LENGTH']
         filepath = MUSIC_LIBRARY_PATH + current_song["name"]
         if os.path.exists(filepath):
+            print("file_info", filepath)
             if song_status == "stopped":
                 pygame.mixer.music.stop()
                 page2_global.slider.config(to=current_song['length'], value='0')
@@ -485,8 +486,9 @@ def receive_song_file():
 def sendTCP_users_in_room(message_type):
     global ip_name_dict_in_room
     for ip in ip_name_dict_in_room.keys():
-        respond_message = createTCPMessage(message_type)
-        sendTCP(ip, respond_message)
+        if ip != IPAddr:
+            respond_message = createTCPMessage(message_type)
+            sendTCP(ip, respond_message)
 
 def update_room_ui():
     global ip_room_dict, rooms_var, rooms

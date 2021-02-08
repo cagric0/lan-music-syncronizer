@@ -774,18 +774,18 @@ class Page2(tk.Frame):
             music_changed = False
             return
         if self.slider_hold:
-            self.slider.after(1000, self.update_slider)
+            self.slider.after(10, self.update_slider)
         else:
             if not pygame.mixer.music.get_busy():
                 print("FINISH")
                 return
             pos = self.slider.get()
-            self.slider.config(value=pos + 1)
-            print(pos)
-            #global i
-            #print(pos) if i % 100 == 0 else None
-            #i += 1
-            self.slider.after(1000, self.update_slider)
+            self.slider.config(value=pos + 0.01)
+
+            global i
+            print(pos) if i % 100 == 0 else None
+            i += 1
+            self.slider.after(10, self.update_slider)
 
     def mute(self):
         if pygame.mixer.music.get_volume():
@@ -816,10 +816,6 @@ class Page2(tk.Frame):
             mut = MP3(file_path)
             current_song_length = mut.info.length
             current_song["length"] = current_song_length
-            
-            pygame.mixer.music.stop()
-            time.sleep(0.02)
-            print("aaaaaa", pygame.mixer.music.get_busy())
             self.slider.config(to=current_song_length, value=0)
             sendTCP_users_in_room(messageType["song_file_info"])
             print(current_song, current_song_length)
@@ -835,7 +831,7 @@ class Page2(tk.Frame):
                 sendTCP_users_in_room(messageType["song_file_info"])
                 pygame.mixer.music.stop()
                 time.sleep(0.02)
-                pygame.mixer.music.play(0, self.slider.get())
+                pygame.mixer.music.play(0, float(current_song["time"]))
                 self.update_slider()
 
     def pause(self):

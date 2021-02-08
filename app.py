@@ -31,8 +31,8 @@ messageType = {
 }
 SEPARATOR = "<SEPARATOR>"
 BUFFER_SIZE = 4096  # send 4096 bytes each time step
-file_port = 5001
-port = 12345
+file_port = 5002
+port = 12346
 bufferSize = 1024
 IPAddr = ""  # 192.168.1.166
 localIPAddr = ""  # 192.168.1
@@ -395,7 +395,7 @@ def send_song_file(IP, filename):
     file_path = MUSIC_LIBRARY_PATH + filename
     filesize = os.path.getsize(file_path)
     # send the filename and filesize
-    s.send(f"{filename}{SEPARATOR}{filesize}".encode())
+    # s.send(f"{filename}{SEPARATOR}{filesize}".encode())
 
     # start sending the file
     # progress = tqdm.tqdm(range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -421,57 +421,74 @@ def send_song_file(IP, filename):
 # Receive File Function
 
 def receive_song_file():
+    
     while True:
-        # TCP socket
-        s = socket.socket()
-        # bind the socket to our local address
-        s.bind((IPAddr, file_port))
-        # enabling our server to accept connections
-        # 5 here is the number of unaccepted connections that
-        # the system will allow before refusing new connections
-        s.listen()
-        print(f"[*] Listening as {IPAddr}:{file_port}")
+        file_path = MUSIC_LIBRARY_PATH + current_song["name"]
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((IPAddr, file_port))
+            s.listen()
+            conn, addr = s.accept()
+            with conn:
+                output = ""
+                with open(file_path, "wb") as f:
+                    while (True):
+                        data = conn.recv(1024)
+                        if not data:
+                            break
+                        f.write(data)
 
-        # accept connection if there is any
-        client_socket, address = s.accept()
-        # if below code is executed, that means the sender is connected
-        print(f"[+] {address} is connected.")
-
-        if address != selected_room_ip:
-            # close the client socket
-            client_socket.close()
-            # close the server socket
-            s.close()
-        else:
-            # receive the file infos
-            # receive using client socket, not server socket
-            received = client_socket.recv(BUFFER_SIZE).decode()
-            filename, filesize = received.split(SEPARATOR)
-
-            file_path = MUSIC_LIBRARY_PATH + filename
-            # convert to integer
-            filesize = int(filesize)
-
-            # start receiving the file from the socket
-            # and writing to the file stream
-            # progress = tqdm.tqdm(range(filesize), f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            with open(file_path, "wb") as f:
-                while True:
-                    # read 1024 bytes from the socket (receive)
-                    bytes_read = client_socket.recv(BUFFER_SIZE)
-                    if not bytes_read:
-                        # nothing is received
-                        # file transmitting is done
-                        break
-                    # write to the file the bytes we just received
-                    f.write(bytes_read)
-                    # update the progress bar
-                    # progress.update(len(bytes_read))
-
-            # close the client socket
-            client_socket.close()
-            # close the server socket
-            s.close()
+    # while True:
+    #     # TCP socket
+    #     s = socket.socket()
+    #     # bind the socket to our local address
+    #     s.bind((IPAddr, file_port))
+    #     # enabling our server to accept connections
+    #     # 5 here is the number of unaccepted connections that
+    #     # the system will allow before refusing new connections
+    #     s.listen()
+    #     print(f"[*] Listening as {IPAddr}:{file_port}")
+    #
+    #     # accept connection if there is any
+    #     client_socket, address = s.accept()
+    #     # if below code is executed, that means the sender is connected
+    #     print(f"[+] {address} is connected.")
+    #
+    #     if address != selected_room_ip:
+    #         # close the client socket
+    #         client_socket.close()
+    #         # close the server socket
+    #         s.close()
+    #     else:
+    #         # receive the file infos
+    #         # receive using client socket, not server socket
+    #         received = client_socket.recv(BUFFER_SIZE).decode()
+    #         filename, filesize = received.split(SEPARATOR)
+    #
+    #         file_path = MUSIC_LIBRARY_PATH + filename
+    #         # convert to integer
+    #         filesize = int(filesize)
+    #
+    #         # start receiving the file from the socket
+    #         # and writing to the file stream
+    #         # progress = tqdm.tqdm(range(filesize), f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    #         with open(file_path, "wb") as f:
+    #             while True:
+    #                 # read 1024 bytes from the socket (receive)
+    #                 bytes_read = client_socket.recv(BUFFER_SIZE)
+    #                 if not bytes_read:
+    #                     # nothing is received
+    #                     # file transmitting is done
+    #                     break
+    #                 # write to the file the bytes we just received
+    #                 f.write(bytes_read)
+    #                 # update the progress bar
+    #                 # progress.update(len(bytes_read))
+    #
+    #         # close the client socket
+    #         client_socket.close()
+    #         # close the server socket
+    #         s.close()
 
 def sendTCP_users_in_room(message_type):
     global ip_name_dict_in_room

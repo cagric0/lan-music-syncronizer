@@ -1,5 +1,6 @@
 import socket
 import json
+import sys
 import threading
 import select
 import os
@@ -50,6 +51,8 @@ current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""} 
 
 page2_global = None
 page2_global_controller = None
+
+music_changed = False
 
 def get_ip():
     global IPAddr, localIPAddr
@@ -230,6 +233,7 @@ def handle_exit_room_host(received_packet):
     host_name = received_packet["HOST_NAME"]
     if room_ip in ip_room_dict:
         del ip_room_dict[room_ip]
+        update_room_ui()
     if selected_room_ip == room_ip:
         ip_name_dict_in_room.clear()
         selected_room_ip = ""
@@ -238,7 +242,6 @@ def handle_exit_room_host(received_packet):
         ## o odadaki tüm kullanıcılar ana menüye yönlendirilir
         global page2_global, page2_global_controller
         # TODO test
-        update_room_ui()
         update_userlist_ui()
         page2_global.slider.config(value=0)
         pygame.mixer.music.stop()
@@ -370,6 +373,8 @@ def handle_song_file_info(received_packet):
                 print("playing", filepath)
                 print("currenTime", current_song["time"])
                 page2_global.slider.config(to=current_song['length'], value=current_song['time'])
+                pygame.mixer.music.stop()
+                time.sleep(0.02)
                 pygame.mixer.music.load(filepath)
                 pygame.mixer.music.play(0, page2_global.slider.get())
                 page2_global.update_slider()
@@ -549,8 +554,6 @@ class TkinterApp(tk.Tk):
         current_song_name_var = tk.StringVar()
         current_song_length = None
 
-        global is_playing
-        is_playing = False
 
         container = tk.Frame(self)
         container.pack(side="top", fill="both", expand=True)
@@ -620,10 +623,11 @@ class Page1(tk.Frame):
         self.get_host_frame(controller)
 
     def join_selected_room(self, controller):
-        global rooms, current_room_var, selected_room_ip
+        global rooms, current_room_var, selected_room_ip, page2_global
         val = self.listbox.curselection()
         if not val:
             return
+        page2_global.slider.state(["disabled"])
         val = val[0]
         selected_room_ip = rooms[val][0]
         udp_message = createUDPMessage(messageType["enter_room"])
@@ -638,7 +642,8 @@ class Page1(tk.Frame):
         update_room_ui()
 
     def host_room(self, controller):
-        global current_room, currrent_room_var, created_room_ip, IPAddr, ip_room_dict, name, selected_room_ip
+        global current_room, currrent_room_var, created_room_ip, IPAddr, ip_room_dict, name, selected_room_ip, page2_global
+        page2_global.slider.state(["!disabled"])
 
         val = self.host_name_entry.get()
         if not val:
@@ -673,7 +678,7 @@ class Page1(tk.Frame):
         buttons = [
             tk.Button(buttons_frame, width=15, text="Join Room", command=lambda: self.join_selected_room(controller)),
             tk.Button(buttons_frame, width=15, text="Refresh", command=self.refresh_rooms),
-            tk.Button(buttons_frame, width=15, text="Quit", command=lambda: controller.show_frame(StartPage))]
+            tk.Button(buttons_frame, width=15, text="Quit", command= sys.exit)]
         for i, button in enumerate(buttons):
             button.grid(row=0, column=i, padx=25, pady=10)
         buttons_frame.pack()
@@ -702,7 +707,7 @@ class Page1(tk.Frame):
         label2.grid(row=0, column=1)
         welcome_frame.pack(pady=(30, 20))
 
-
+i = 0
 class Page2(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -760,13 +765,22 @@ class Page2(tk.Frame):
         song_listbox_frame.pack()
 
     def update_slider(self):
+        global music_changed
+        if music_changed:
+            print("FINISH on CHANGE")
+            music_changed = False
+            return
         if self.slider_hold:
             self.slider.after(10, self.update_slider)
         else:
             if not pygame.mixer.music.get_busy():
+                print("FINISH")
                 return
             pos = self.slider.get()
             self.slider.config(value=pos + 0.01)
+            global i
+            print(pos) if i % 100 == 0 else None
+            i += 1
             self.slider.after(10, self.update_slider)
 
     def mute(self):
@@ -779,12 +793,14 @@ class Page2(tk.Frame):
         global created_room_ip
         if not created_room_ip.strip():
             return
-        global music_names, music_names_var, current_song, current_song_length, current_song_name_var
+        global music_names, music_names_var, current_song, current_song_length, current_song_name_var, music_changed
         chosen_song = music_names[self.songlistbox.curselection()[0]] if self.songlistbox.curselection() else None
 
         if not chosen_song:
             return
         if current_song["name"] != chosen_song:
+            if current_song["name"].strip():
+                music_changed = True
             current_song["name"] = chosen_song
             file_path = MUSIC_LIBRARY_PATH + chosen_song
             filesize = os.path.getsize(file_path)
@@ -795,9 +811,13 @@ class Page2(tk.Frame):
             mut = MP3(file_path)
             current_song_length = mut.info.length
             current_song["length"] = current_song_length
+            
+            pygame.mixer.music.stop()
+            time.sleep(0.02)
+            print("aaaaaa", pygame.mixer.music.get_busy())
             self.slider.config(to=current_song_length, value=0)
             sendTCP_users_in_room(messageType["song_file_info"])
-            # print(current_song, current_song_length)
+            print(current_song, current_song_length)
             pygame.mixer.music.load(MUSIC_LIBRARY_PATH + chosen_song)
             pygame.mixer.music.play(0, self.slider.get())
             self.update_slider()
@@ -808,6 +828,8 @@ class Page2(tk.Frame):
                 current_song["time"] = self.slider.get()
                 current_song["status"] = "playing"
                 sendTCP_users_in_room(messageType["song_file_info"])
+                pygame.mixer.music.stop()
+                time.sleep(0.02)
                 pygame.mixer.music.play(0, self.slider.get())
                 self.update_slider()
 
@@ -866,13 +888,15 @@ class Page2(tk.Frame):
         self.slider_hold = True
 
     def exit(self, controller):
-        global current_song, created_room_ip, selected_room_ip, ip_name_dict_in_room
+        global current_song, created_room_ip, selected_room_ip, ip_name_dict_in_room, ip_room_dict
         current_song = {"name": "", "size": "", "time": "", "status": "", "length": ""}
+        pygame.mixer.music.set_volume(1)
         if created_room_ip.strip():
             udp_message = createUDPMessage(messageType["exit_room_host"])
             sendUDP(udp_message)
             if created_room_ip in ip_room_dict:
                 del ip_room_dict[created_room_ip]
+                update_room_ui()
         else:
             for ip in ip_name_dict_in_room.keys():
                 respond_message = createTCPMessage(messageType["exit_room"])
@@ -885,6 +909,8 @@ class Page2(tk.Frame):
         pygame.mixer.music.stop()
         controller.show_frame(Page1)
         update_room_ui()
+        update_userlist_ui()
+        
 
     def get_buttons(self, controller):
         global button_images
@@ -902,7 +928,7 @@ class Page2(tk.Frame):
                                 value=0, length=650, style='Horizontal.TScale')
         self.slider.bind("<Button-1>", self.slider_click)
         self.slider.bind("<ButtonRelease-1>", self.slider_release)
-
+        
         self.slider.grid(row=0, column=0, columnspan=6, padx=0, pady=10)
         buttons = [tk.Button(buttons_frame, text="Mute", command=self.mute,
                              image=button_images[3], bg=COLORS[3], borderwidth=0),

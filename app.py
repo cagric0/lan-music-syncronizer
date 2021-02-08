@@ -14,7 +14,6 @@ LARGEFONT = ("Helvetica", 32)
 MEDIUMFONT = ("Helvetica", 16)
 SMALLFONT = ("Helvetica", 12)
 MUSIC_LIBRARY_PATH = "music/"
-created_room_ip = ""
 
 
 
@@ -39,14 +38,17 @@ IPAddr = ""  # 192.168.1.166
 localIPAddr = ""  # 192.168.1
 
 selected_room_ip = ""
-created_room_ip = "192.168.1.131"
-name = "Halas"
-roomName = "Cagri"
-ip_room_dict = {"192.168.1.131": [roomName, name]}  # ip_room_dict[IP] = [room_name, host_name]
+created_room_ip = ""
+name = ""
+
+ip_room_dict = {}  # ip_room_dict[IP] = [room_name, host_name]
 ip_name_dict_in_room = {}  # ip_name_dict_in_room[IP] = user_name
+
 
 current_song = {"name": "", "size": "", "time": "", "status": ""}  # playing - paused
 
+page2_global = None
+page2_global_controller = None
 
 def get_ip():
     global IPAddr, localIPAddr
@@ -92,7 +94,7 @@ def createUDPMessage(message_type):
         message["USER_IP"] = IPAddr
     elif message_type == messageType["create_room"]:
         # UI dan room create edince ip-name dictionarye
-        # eklenmeli selected room id ye atanmalı
+        # eklenmeli selected room id ye atanmalı DONE
         message["ROOM_IP"] = created_room_ip  # aynı zamanda host ip
         message["ROOM_NAME"] = ip_room_dict[created_room_ip][0]
         message["HOST_NAME"] = ip_room_dict[created_room_ip][1]
@@ -221,11 +223,11 @@ def handle_create_room(received_packet):
     room_name = received_packet["ROOM_NAME"]
     host_name = received_packet["HOST_NAME"]
     ip_room_dict[room_ip] = [room_name, host_name]
-    # update room list UI
+    # update room list UI DONE
     update_room_ui()
 
 def handle_exit_room_host(received_packet):
-    global ip_room_dict, ip_name_dict_in_room, selected_room_ip, current_song
+    global ip_room_dict, ip_name_dict_in_room, selected_room_ip, current_song, created_room_ip
     room_ip = received_packet["ROOM_IP"]
     room_name = received_packet["ROOM_NAME"]
     host_name = received_packet["HOST_NAME"]
@@ -234,8 +236,14 @@ def handle_exit_room_host(received_packet):
     if selected_room_ip == room_ip:
         ip_name_dict_in_room.clear()
         selected_room_ip = ""
+        created_room_ip = ""
         current_song = {"name": "", "size": "", "time": "", "status": ""}
-        ## O odadaki tüm kullanıcılar ana menüye yönlendirilir
+        ## o odadaki tüm kullanıcılar ana menüye yönlendirilir
+        global page2_global, page2_global_controller
+        # TODO test
+        page2_global.slider.config(value=0)
+        pygame.mixer.music.stop()
+        page2_global_controller.show_frame(Page1)
 
 
 def handle_enter_room(received_packet):
@@ -245,7 +253,10 @@ def handle_enter_room(received_packet):
     new_user_ip = received_packet["USER_IP"]
     if selected_room_ip.strip():
         if selected_room_ip == room_ip:
+            if new_user_ip in ip_name_dict_in_room and ip_name_dict_in_room[new_user_ip] == new_user_name:
+                return
             ip_name_dict_in_room[new_user_ip] = new_user_name
+            update_userlist_ui()
             respond_message = createTCPMessage(messageType["respond_entering_room"])
             sendTCP(new_user_ip, respond_message)
             if created_room_ip.strip():
@@ -263,7 +274,7 @@ def handle_exit_room(received_packet):
         if selected_room_ip == room_ip:
             if user_ip in ip_name_dict_in_room:
                 del ip_name_dict_in_room[user_ip]
-                # update user list UI in room
+                update_userlist_ui()
 
 
 # Listen TCP functions
@@ -320,19 +331,41 @@ def handle_respond_entering_room(received_packet):
     user_name = received_packet["USER_NAME"]
     user_ip = received_packet["USER_IP"]
     ip_name_dict_in_room[user_ip] = user_name
+    update_userlist_ui()
 
 
 def handle_song_file_info(received_packet):
+    global current_song, page2_global, current_song_length
     room_ip = received_packet["ROOM_IP"]
     if not received_packet["SONG_FILE_NAME"].strip():
+        current_song = {"name": "", "size": "", "time": "", "status": ""}
+
         return
     if selected_room_ip == room_ip:
+        song_status = received_packet["SONG_STATUS"]
         current_song["name"] = received_packet["SONG_FILE_NAME"]
         current_song["size"] = received_packet["SONG_FILE_SIZE"]
         current_song["time"] = received_packet["SONG_CURRENT_TIME"]
         current_song["status"] = received_packet["SONG_STATUS"]
-        if True : #song exists
-            return# update song status in local
+        filepath = MUSIC_LIBRARY_PATH + current_song["name"]
+        if os.path.exists(filepath):
+            if song_status == "stopped":
+                pygame.mixer.music.stop()
+
+                page2_global.slider.config(value='0')
+                # stop song
+            elif song_status == "paused":
+                page2_global.slider.config(value=current_song['time'])
+                pygame.mixer.music.pause()
+                # paused song
+            elif song_status == "playing":
+                mut = MP3(filepath)
+                current_song_length = mut.info.length
+                page2_global.slider.config(to=current_song_length, value=current_song['time'])
+                pygame.mixer.music.load(filepath)
+                pygame.mixer.music.play(0, page2_global.slider.get())
+                page2_global.update_slider()
+                # play song
         else:
             # send TCP to get song file
             respond_message = createTCPMessage(messageType["song_file_request"])
@@ -359,7 +392,7 @@ def send_song_file(IP, filename):
     s.connect((IP, file_port))
     print("[+] Connected.")
 
-    file_path = "music/" + filename
+    file_path = MUSIC_LIBRARY_PATH + filename
     filesize = os.path.getsize(file_path)
     # send the filename and filesize
     s.send(f"{filename}{SEPARATOR}{filesize}".encode())
@@ -381,8 +414,8 @@ def send_song_file(IP, filename):
     # close the socket
     s.close()
     # TO DO
-    # respond_message = createTCPMessage(messageType["song_file_info"])
-    # sendTCP(IP, respond_message)
+    respond_message = createTCPMessage(messageType["song_file_info"])
+    sendTCP(IP, respond_message)
 
 
 # Receive File Function
@@ -415,7 +448,7 @@ def receive_song_file():
             received = client_socket.recv(BUFFER_SIZE).decode()
             filename, filesize = received.split(SEPARATOR)
 
-            file_path = "music/" + filename
+            file_path = MUSIC_LIBRARY_PATH + filename
             # convert to integer
             filesize = int(filesize)
 
@@ -440,8 +473,23 @@ def receive_song_file():
             # close the server socket
             s.close()
 
+def sendTCP_users_in_room(message_type):
+    global ip_name_dict_in_room
+    for ip in ip_name_dict_in_room.keys():
+        respond_message = createTCPMessage(message_type)
+        sendTCP(ip, respond_message)
 
+def update_room_ui():
+    global ip_room_dict, rooms_var, rooms
+    rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items()]
+    room_names = [r[1]+" hosted by "+r[2] for r in rooms]
+    rooms_var.set(room_names)
 
+def update_userlist_ui():
+    global ip_name_dict_in_room, users_in_room, users_in_room_var
+    users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items()]
+    users_in_room_names = [u[1] for u in users_in_room]
+    users_in_room_var.set(users_in_room_names)
 
 
 class TkinterApp(tk.Tk):
@@ -462,16 +510,16 @@ class TkinterApp(tk.Tk):
         current_room = None
         current_room_var = tk.StringVar()
 
-        global users_in_room_dict, users_in_room, users_in_room_var
-        users_in_room_dict = {i: f"User {i}" for i in range(1, 11)}
-        users_in_room = [(k, v) for k, v in users_in_room_dict.items()]
+        global ip_name_dict_in_room, users_in_room, users_in_room_var
+
+        users_in_room = [(k, v) for k, v in ip_name_dict_in_room.items()]
         users_in_room_names = [u[1] for u in users_in_room]
         users_in_room_var = tk.StringVar(value=users_in_room_names)
 
-        global music_names, music_names_var, current_song, current_song_length
+        global music_names, music_names_var, current_song_name_var, current_song_length
         music_names = os.listdir("music/")
         music_names_var = tk.StringVar(value=music_names)
-        current_song = tk.StringVar()
+        current_song_name_var = tk.StringVar()
         current_song_length = None
 
         global is_playing
@@ -523,6 +571,7 @@ class StartPage(tk.Frame):
         val = val.strip()
         if val:
             global username, name
+            update_userlist_ui()
             name = val
             username.set(val)
             print(f"[LOGIN] {username.get()}")
@@ -530,13 +579,6 @@ class StartPage(tk.Frame):
             controller.show_frame(Page1)
         else:
             self.username_input.configure(highlightbackground="#ff4f64", highlightcolor="#ff4f64")
-
-
-def update_room_ui():
-    global ip_room_dict, rooms_var, rooms
-    rooms = [(k, v[0], v[1]) for k, v in ip_room_dict.items()]
-    room_names = [r[1]+" hosted by "+r[2] for r in rooms]
-    rooms_var.set(room_names)
 
 
 class Page1(tk.Frame):
@@ -551,10 +593,14 @@ class Page1(tk.Frame):
         self.get_host_frame(controller)
 
     def join_selected_room(self, controller):
+        global rooms, current_room_var, selected_room_ip
         val = self.listbox.curselection()
         if not val:
             return
         val = val[0]
+        selected_room_ip = rooms[val][0]
+        udp_message = createUDPMessage(messageType["enter_room"])
+        sendUDP(udp_message)
         print("JOINED to room:", rooms[val][1])
         current_room_var.set(rooms[val][1])
         if song_listbox_frame:
@@ -562,17 +608,17 @@ class Page1(tk.Frame):
         controller.show_frame(Page2)
 
     def refresh_rooms(self):
-        global ip_room_dict
         update_room_ui()
 
     def host_room(self, controller):
-        global rooms, rooms_var, current_room, currrent_room_var, created_room_ip, IPAddr, ip_room_dict, name
+        global current_room, currrent_room_var, created_room_ip, IPAddr, ip_room_dict, name, selected_room_ip
 
         val = self.host_name_entry.get()
         if not val:
             return
 
         created_room_ip = IPAddr
+        selected_room_ip = created_room_ip
         # add new room info to dict
         ip_room_dict[created_room_ip] = [val, name]
         # send message to all user to update their room list ui
@@ -639,6 +685,9 @@ class Page2(tk.Frame):
         self.get_listbox_frame()
         self.get_buttons(controller)
         self.get_songlistbox_frame()
+        global page2_global, page2_global_controller
+        page2_global = self
+        page2_global_controller = controller
 
     def get_room_title_frame(self):
         room_title_frame = tk.Frame(self)
@@ -685,13 +734,13 @@ class Page2(tk.Frame):
 
     def update_slider(self):
         if self.slider_hold:
-            self.slider.after(1000, self.update_slider)
+            self.slider.after(10, self.update_slider)
         else:
             if not pygame.mixer.music.get_busy():
                 return
             pos = self.slider.get()
-            self.slider.config(value=pos + 1)
-            self.slider.after(1000, self.update_slider)
+            self.slider.config(value=pos + 0.01)
+            self.slider.after(10, self.update_slider)
 
     def mute(self):
         if pygame.mixer.music.get_volume():
@@ -703,45 +752,69 @@ class Page2(tk.Frame):
         global created_room_ip
         if not created_room_ip.strip():
             return
-        global music_names, music_names_var, current_song, current_song_length
+        global music_names, music_names_var, current_song, current_song_length, current_song_name_var
         chosen_song = music_names[self.songlistbox.curselection()[0]] if self.songlistbox.curselection() else None
+
         if not chosen_song:
             return
-        if current_song != chosen_song:
-            current_song = chosen_song
-            mut = MP3(MUSIC_LIBRARY_PATH + current_song)
+        if current_song["name"] != chosen_song:
+            current_song["name"] = chosen_song
+            file_path = MUSIC_LIBRARY_PATH + chosen_song
+            filesize = os.path.getsize(file_path)
+            current_song["size"] = str(filesize)
+            current_song["status"] = "playing"
+            current_song["time"] = "0"
+            current_song_name_var.set(chosen_song)
+            mut = MP3(file_path)
             current_song_length = mut.info.length
+            sendTCP_users_in_room(messageType["song_file_info"])
             self.slider.config(to=current_song_length, value=0)
             # print(current_song, current_song_length)
-            pygame.mixer.music.load(MUSIC_LIBRARY_PATH + current_song)
+            pygame.mixer.music.load(MUSIC_LIBRARY_PATH + chosen_song)
             pygame.mixer.music.play(0, self.slider.get())
             self.update_slider()
         else:
             if pygame.mixer.music.get_busy():
                 return
             else:
+                current_song["time"] = self.slider.get()
+                current_song["status"] = "playing"
+                sendTCP_users_in_room(messageType["song_file_info"])
                 pygame.mixer.music.play(0, self.slider.get())
                 self.update_slider()
 
     def pause(self):
-        global created_room_ip
+        global created_room_ip, current_song
         if not created_room_ip.strip():
             return
         pygame.mixer.music.pause()
+        current_song["time"] = self.slider.get()
+        current_song["status"] = "paused"
+        sendTCP_users_in_room(messageType["song_file_info"])
 
     def stop(self):
-        global created_room_ip
+        global created_room_ip, current_song
         if not created_room_ip.strip():
             return
         pygame.mixer.music.stop()
         self.slider.config(value=0)
-        global current_song
-        current_song = None
+        current_song["status"] = "stopped"
+        current_song["time"] = "0"
+        sendTCP_users_in_room(messageType["song_file_info"])
+
 
     def reset(self):
-        global created_room_ip
+        global created_room_ip, current_song_length, current_song
         if not created_room_ip.strip():
             return
+
+        if self.slider.get() == current_song_length:
+            current_song["status"] = "stopped"
+            current_song["time"] = "0"
+        else:
+            current_song["status"] = "playing"
+            current_song["time"] = "0"
+        sendTCP_users_in_room(messageType["song_file_info"])
         pygame.mixer.music.rewind()
         self.slider.config(value=0)
 
@@ -751,6 +824,9 @@ class Page2(tk.Frame):
             return
         if pygame.mixer.music.get_busy():
             pos = self.slider.get()
+            current_song["status"] = "playing"
+            current_song["time"] = pos
+            sendTCP_users_in_room(messageType["song_file_info"])
             pygame.mixer.music.set_pos(pos)
 
         self.slider_hold = False
@@ -762,14 +838,25 @@ class Page2(tk.Frame):
         self.slider_hold = True
 
     def exit(self, controller):
-        global current_song
-        current_song = None
+        global current_song, created_room_ip, selected_room_ip, ip_name_dict_in_room
+        current_song = {"name": "", "size": "", "time": "", "status": ""}
+        if created_room_ip.strip():
+            udp_message = createUDPMessage(messageType["exit_room_host"])
+            sendUDP(udp_message)
+            if created_room_ip in ip_room_dict:
+                del ip_room_dict[created_room_ip]
+        else:
+            for ip in ip_name_dict_in_room.keys():
+                respond_message = createTCPMessage(messageType["exit_room"])
+                sendTCP(ip, respond_message)
+
+        selected_room_ip = ""
+        created_room_ip = ""
+        ip_name_dict_in_room.clear()
         self.slider.config(value=0)
         pygame.mixer.music.stop()
         controller.show_frame(Page1)
-
-        global created_room_ip
-        created_room_ip = ''
+        update_room_ui()
 
     def get_buttons(self, controller):
         global button_images
@@ -817,8 +904,8 @@ listenUdp.start()
 listenTcp = threading.Thread(target=listenTCP, args=(), daemon=True)
 listenTcp.start()
 
-udp_message = createUDPMessage(messageType["discover_rooms"])
-sendUDP(udp_message)
+udp_discover_message = createUDPMessage(messageType["discover_rooms"])
+sendUDP(udp_discover_message)
 
 # Send File Function
 if not os.path.exists('music'):

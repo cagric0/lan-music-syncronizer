@@ -237,18 +237,21 @@ def handle_exit_room_host(received_packet):
 
 
 def handle_enter_room(received_packet):
-    global ip_name_dict_in_room
+    global ip_name_dict_in_room, selected_room_ip
     room_ip = received_packet["ROOM_IP"]
     new_user_name = received_packet["USER_NAME"]
     new_user_ip = received_packet["USER_IP"]
+    print('selected room:', selected_room_ip)
     if selected_room_ip.strip():
         if selected_room_ip == room_ip:
+            print(ip_name_dict_in_room)
             if new_user_ip in ip_name_dict_in_room and ip_name_dict_in_room[new_user_ip] == new_user_name:
                 return
             ip_name_dict_in_room[new_user_ip] = new_user_name
             update_userlist_ui()
             respond_message = createTCPMessage(messageType["respond_entering_room"])
             sendTCP(new_user_ip, respond_message)
+            print('cre', created_room_ip)
             if created_room_ip.strip():
                 # sends song info to user that enter the room
                 respond_message = createTCPMessage(messageType["song_file_info"])
@@ -821,10 +824,9 @@ class Page2(tk.Frame):
         else:
             current_song["status"] = "stopped"
             current_song["time"] = "0"
-
-        sendTCP_users_in_room(messageType["song_file_info"])
-        pygame.mixer.music.rewind()
         self.slider.config(value=0)
+        pygame.mixer.music.rewind()
+        sendTCP_users_in_room(messageType["song_file_info"])
 
     def slider_release(self, event):
         global created_room_ip

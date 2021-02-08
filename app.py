@@ -73,6 +73,7 @@ def thread_broadcast(message):
 
 
 def sendUDP(udpMessage):
+
     for i in range(1):
         dis = threading.Thread(target=thread_broadcast, args=(udpMessage,))
         dis.start()
@@ -90,11 +91,13 @@ def createUDPMessage(message_type):
         message["ROOM_IP"] = created_room_ip  # aynı zamanda host ip
         message["ROOM_NAME"] = ip_room_dict[created_room_ip][0]
         message["HOST_NAME"] = ip_room_dict[created_room_ip][1]
+        message["USER_IP"] = IPAddr
     elif message_type == messageType["exit_room_host"]:
         # clear all data about the room current_song, ip_name_dict_in_room, selected_room_ip, created_room_ip
         message["ROOM_IP"] = created_room_ip
         message["ROOM_NAME"] = ip_room_dict[created_room_ip][0]
         message["HOST_NAME"] = ip_room_dict[created_room_ip][1]
+        message["USER_IP"] = IPAddr
     elif message_type == messageType["enter_room"]:
         # UI dan room seçince dictionary üzerinden
         # id si bulunup selected room id ye atanmalı
@@ -110,14 +113,15 @@ def createUDPMessage(message_type):
 
 # TCP Functions
 def thread_unicast(IP, message):
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(1)
-            s.connect((IP, port))
-            print("Send TCP:", message)
-            s.sendall(message.encode())
-    except:
-        print(str(IP) + " is unexpectedly offline.")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        s.connect((IP, port))
+        print("Send TCP:", message)
+        s.sendall(message.encode())
+    #try:
+        
+    #except:
+        #print(str(IP) + " is unexpectedly offline.")
         # ip_name_dict.pop(IP, None)
 
 
@@ -160,8 +164,9 @@ def createTCPMessage(message_type):
 
 
 def sendTCP(IP, tcpMessage):
-    dis = threading.Thread(target=thread_unicast, args=(IP, tcpMessage), daemon=True)
-    dis.start()
+    if IP != IPAddr:
+        dis = threading.Thread(target=thread_unicast, args=(IP, tcpMessage), daemon=True)
+        dis.start()
 
 
 # Listen UDP functions
@@ -183,7 +188,7 @@ def listenUDP():
 
 
 def handle_UDP_incoming(received_packet):
-    if "TYPE" not in received_packet:
+    if "TYPE" not in received_packet or received_packet["USER_IP"] == IPAddr:
         return
 
     received_packet_type = received_packet["TYPE"]
@@ -350,15 +355,19 @@ def handle_song_file_info(received_packet):
         current_song['length'] = received_packet['SONG_LENGTH']
         filepath = MUSIC_LIBRARY_PATH + current_song["name"]
         if os.path.exists(filepath):
+            print("file_info", filepath)
             if song_status == "stopped":
+                print("stopped", filepath) 
                 pygame.mixer.music.stop()
                 page2_global.slider.config(to=current_song['length'], value='0')
                 # stop song
             elif song_status == "paused":
+                print("paused", filepath)
                 page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.pause()
                 # paused song
             elif song_status == "playing":
+                print("playing", filepath)
                 page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.load(filepath)
                 pygame.mixer.music.play(0, page2_global.slider.get())
@@ -491,8 +500,9 @@ def receive_song_file():
 def sendTCP_users_in_room(message_type):
     global ip_name_dict_in_room
     for ip in ip_name_dict_in_room.keys():
-        respond_message = createTCPMessage(message_type)
-        sendTCP(ip, respond_message)
+        if ip != IPAddr:
+            respond_message = createTCPMessage(message_type)
+            sendTCP(ip, respond_message)
 
 def update_room_ui():
     global ip_room_dict, rooms_var, rooms, IPAddr

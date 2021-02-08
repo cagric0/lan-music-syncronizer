@@ -366,6 +366,7 @@ def handle_song_file_info(received_packet):
                 # paused song
             elif song_status == "playing":
                 print("playing", filepath)
+                print("currenTime", current_song["time"])
                 page2_global.slider.config(to=current_song['length'], value=current_song['time'])
                 pygame.mixer.music.load(filepath)
                 pygame.mixer.music.play(0, page2_global.slider.get())
@@ -791,8 +792,8 @@ class Page2(tk.Frame):
             mut = MP3(file_path)
             current_song_length = mut.info.length
             current_song["length"] = current_song_length
-            sendTCP_users_in_room(messageType["song_file_info"])
             self.slider.config(to=current_song_length, value=0)
+            sendTCP_users_in_room(messageType["song_file_info"])
             # print(current_song, current_song_length)
             pygame.mixer.music.load(MUSIC_LIBRARY_PATH + chosen_song)
             pygame.mixer.music.play(0, self.slider.get())
